@@ -1,10 +1,11 @@
 const http = require("http");
-const port = 5000;
 const url = require("url");
 require("./mongodb/index");
 const User = require("./model/UserModel");
 const { parse } = require("querystring");
-const { createUser } = require("./controller/userController");
+const { createUser, loginUser } = require("./controller/userController");
+const { AccessToken } = require("./config/jwt_helper");
+require("dotenv").config();
 const coresAllows = {
   "Content-Type": "application/json",
   "Access-Control-Allow-Origin": "*",
@@ -15,19 +16,31 @@ const coresAllows = {
 http
   .createServer((req, res) => {
     // let q = url.parse(req.url)
-    if (req.url === "/register") {
+
+    console.log(req.method);
+    // thus is user regtister route
+    // @body name email number password
+    // @return user true
+    if (req.url === "/register" && req.method === "POST") {
       res.writeHead(200, coresAllows);
       let body = "";
       req.on("data", (chunk) => {
         body += chunk.toString();
       });
       req.on("end", () => {
-        const { email, password } = parse(body);
+        console.log(body);
+        const { name, email, password, number } = parse(body);
         const todos = {
           name: "sanoop",
         };
-        createUser(email, password);
-        res.end(JSON.stringify(todos));
+        createUser(name, email, password, number)
+          .then((result) => {
+            console.log(result);
+            res.end(JSON.stringify(result));
+          })
+          .catch((err) => {
+            console.log(err);
+          });
       });
     } // next is login route
     // @body email password
@@ -40,11 +53,23 @@ http
       });
       req.on("end", () => {
         const { email, password } = parse(body);
-        const todos = {
-          name: "sanoop",
-        };
-        createUser(email, password);
-        res.end(JSON.stringify(todos));
+        loginUser(email, password)
+          .then(async (result) => {
+            console.log(result);
+            const AcessToken = await AccessToken(result);
+            console.log(AcessToken);
+            // res.end(JSON.stringify(result));
+            // res.cookie("Tocken", AcessToken, { httpOnly: true });
+            res.writeHead(200, {
+              "Set-Cookie": AcessToken,
+              "Content-Type": "text/plain",
+            });
+            res.end(JSON.stringify(result));
+          })
+          .catch((err) => {
+            console.log(err);
+            res.end(JSON.stringify(err));
+          });
       });
     } else if (req.url === "/" && req.method === "GET") {
       res.writeHead(200, { "Content-Type": "application/json" });
@@ -56,4 +81,6 @@ http
       // res.end(`${req.url} is not allowed for the request.`);
     }
   })
-  .listen(port, () => console.log(`runing server: ${port}`));
+  .listen(process.env.port, () =>
+    console.log(`runing server: ${process.env.port}`)
+  );
